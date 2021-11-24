@@ -126,7 +126,14 @@ class ProfileEndpoint(Resource):
                     return jsonify(response)             
             else:               
                 user = User.query.filter_by(user_id=valid_token.user_id).first()
-                return jsonify({"username": user.username, "email": user.email, "isAdmin": user.is_admin})
+                sport_register_detail = RegistrationSports.query.filter_by(user_id=valid_token.user_id).all()
+                register_detail=[]
+                if sport_register_detail:
+                    for i in sport_register_detail:
+                        detail={"event_id":i.event_id, "event_name":i.event_name}
+                        register_detail.append(detail)
+                return jsonify({"user_detail": {"username": user.username, "email": user.email, "isAdmin": user.is_admin},
+                "sports_register_detail":register_detail})
         else:
             return "invalid authentication token"
 
@@ -392,7 +399,6 @@ class CreateEventRateEndPoint(Resource):
     def get(self):
         return "[post] method allowed"
     def post(self):
-        sent_token=request.headers.get("Authorization").split(" ")[1]
         sent_token = request.headers.get("Authorization").split(" ")[1]          
         valid_token = AuthToken.query.filter_by(token=f"{sent_token}").first()
         if valid_token:
@@ -476,8 +482,70 @@ class CreateUserRateEndPoint(Resource):
                     db.session.commit()
                     return "you rate succesfully added/updated"
         return "your token credential failed."
+class GetUserRegisterDetail(Resource):
+    def get(self):
+        sent_token=request.headers.get("Authorization").split(" ")[1]
+        sent_token = request.headers.get("Authorization").split(" ")[1]          
+        valid_token = AuthToken.query.filter_by(token=f"{sent_token}").first()
+        if valid_token:
+            if datetime.datetime.utcnow() > valid_token.expiry:
+                return "token expired,,,please login in again"
+            else:
+                user = User.query.filter_by(user_id=valid_token.user_id).first()
+                if user.is_admin:
+                    Detail=RegistrationSports.query.filter_by().all()
+                    li=[]
+                    for i in Detail:
+                        dic={"user_id":i.user_id,"event_name":i.event_name, "event_id":i.event_id}
+                        payment=Payments.query.filter_by(user_id=i.user_id).all()
+                        for j in payment:
+                            if j.sports_id==i.sports_id:
+                                dic["payment_status"]=j.payment_withdrwal_status
+                                dic["payment_amount"]=j.payment_amount
+                        li.append(dic)
+                    return li
+                else:
+                    return "you are not a admin."
+        return "your token credential failed."
+                    
+    def post(self):
+        return "[get] method allowed"
 
-
+class DeleteUserRegister(Resource):
+    def get(self):
+        return "[post] method allowed"
+    def post(self):
+        sent_token=request.headers.get("Authorization").split(" ")[1]
+        sent_token = request.headers.get("Authorization").split(" ")[1]          
+        valid_token = AuthToken.query.filter_by(token=f"{sent_token}").first()
+        if valid_token:
+            if datetime.datetime.utcnow() > valid_token.expiry:
+                return "token expired,,,please login in again"
+            else:
+                user = User.query.filter_by(user_id=valid_token.user_id).first()
+                try: 
+                    user_id_=request.json.get("user_id")
+                    event_id_=request.json.get("event_id")
+                    
+                except:
+                    return "error arise in request data create event "
+                if user.is_admin:
+                    sport=RegistrationSports.query.filter_by(user_id = user_id_ ).all()
+                    flag=0
+                    for i in sport:
+                        sport_id=i.sports_id
+                        if i.event_id==event_id_:
+                            db.session.delete(i)
+                            flag=1
+                            break
+                    if flag==1:
+                        payment=Payments.query.filter_by(sports_id=sport_id).delete()
+                        db.session.commit()
+                        return "Delete Sucessfully"   
+                    return "Registration does not exist"
+                else:
+                    return "you are not a admin."
+        return "your token credential failed."
 api.add_resource(RegisterEndpoint, "/api/register")
 api.add_resource(LoginEndpoint, "/api/login")
 api.add_resource(LogoutEndpoint,'/api/logout')
@@ -494,6 +562,8 @@ api.add_resource(GetEventRatingEndPoint,"/api/eventrate")
 api.add_resource(CreateEventRateEndPoint,"/api/eventratee")
 api.add_resource(GetUserRatingEndPoint,"/api/userrate")
 api.add_resource(CreateUserRateEndPoint,"/api/userratee")
+api.add_resource(GetUserRegisterDetail,"/api/sportregisterdetail")
+api.add_resource(DeleteUserRegister,"/api/deleteuser")
 
 
 
@@ -524,21 +594,6 @@ def unique_username_email(user_name, email_id):
     return [True]
 
 
-def create_event():
-    return [
-        {"Event-id": 1,"Event-Name": "BaseBall"},
-        {"Event-id": 2,"Event-Name":"FootBall"},
-        {"Event-id": 3,"Event-Name":"Cricket"},
-        {"Event-id": 4,"Event-Name":"Swimming"},
-        {"Event-id": 5,"Event-Name":"Chess"}]
-
-def create_payment():
-    return [
-        {"Event-id": 1,"Amount": "$900"},
-        {"Event-id": 2,"Amount":"$1000"},
-        {"Event-id": 3,"Amount":"$1500"},
-        {"Event-id": 4,"Amount":"$800"},
-        {"Event-id": 5,"Amount":"$50"}]
 
 if __name__ == "__main__":
     app.run(debug=True)
